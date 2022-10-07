@@ -15,13 +15,15 @@ from pathlib import Path
 
 from tempfile import NamedTemporaryFile
 
+def printf(fmtstr, args):
+  sys.stdout.write(fmtstr % tuple(args))
 
 def invoice(args):
   invoices = []
   # fetch part
-  if args.from_date or args.to_date:
-    startdate = parse(args.from_date)
-    enddate = parse(args.to_date)
+  if args.from_date or args.to_date or not args.invoice_no:
+    startdate = parse(args.from_date) if args.from_date else parse('01-01-1970')
+    enddate = parse(args.to_date) if args.to_date else datetime.now()
     invoices = Invoice.get_inDateRange(startdate, enddate)
   if args.invoice_no:
     invoices = [Invoice.get_byNo(args.invoice_no)]
@@ -30,13 +32,30 @@ def invoice(args):
   if args.action == 'print':
     create_invoice(args, invoices)
   if args.action == 'list':
-    list_invoice(args, invoices)
+    ilist = []
+    for i in invoices:
+      ilist.append({
+        "Inv. No.": i.No,
+        "Client Name": i.client.Name,
+        "Date": i.InvDate,
+        "Total Sum": i.Total
+      })
+    print_table(ilist, ilist[0].keys())
 
-def list_invoice(args, invoices):
-  d = ', '
-  print("Invoice No, Clientname, Invoice Date, Invoice total")
-  for inv in invoices:
-    print(inv.No, d, inv.client.Name, d, inv.InvDate, d, inv.Total)
+def print_table(list_of_objects, fields):
+  lengths = { f : len(f) for f in fields }
+  for o in list_of_objects:
+    for f in fields:
+      val = str(o[f])
+      if len(val) > lengths[f]:
+        lengths[f] = len(val)
+
+  pattern = " | ".join([f"%-{lengths[l]}s" for l in lengths.keys()])
+  pattern = pattern + "\n"
+
+  printf(pattern, fields) # print header
+  for o in list_of_objects:
+    printf(pattern, [o[f] for f in fields])
 
 def create_invoice(args, invoices):
   for inv in invoices:
